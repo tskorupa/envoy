@@ -106,10 +106,17 @@ public:
    * @param callbacks supplies the cache load callbacks to invoke if async processing is needed.
    * @return a cache load handle, in which case the callbacks will be invoked at a later time,
    *         or nullptr if the cache is already loaded. In this case, callbacks will never be
-   *         called.
+   *         called. fixfix
    */
-  virtual LoadDnsCacheHandlePtr loadDnsCache(absl::string_view host, uint16_t default_port,
-                                             LoadDnsCacheCallbacks& callbacks) PURE;
+  enum class LoadDnsCacheStatus { InCache, Loading, Overflow };
+
+  struct LoadDnsCacheResult {
+    LoadDnsCacheStatus status_;
+    LoadDnsCacheHandlePtr handle_;
+  };
+
+  virtual LoadDnsCacheResult loadDnsCache(absl::string_view host, uint16_t default_port,
+                                          LoadDnsCacheCallbacks& callbacks) PURE;
 
   /**
    * Add update callbacks to the cache.

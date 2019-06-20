@@ -7,6 +7,14 @@ namespace Extensions {
 namespace HttpFilters {
 namespace DynamicForwardProxy {
 
+struct ResponseStringValues {
+  const std::string DnsCacheOverflow = "DNS cache overflow";
+};
+
+using ResponseStrings = ConstSingleton<ResponseStringValues>;
+
+using LoadDnsCacheStatus = Common::DynamicForwardProxy::DnsCache::LoadDnsCacheStatus;
+
 ProxyFilterConfig::ProxyFilterConfig(
     const envoy::config::filter::http::dynamic_forward_proxy::v2alpha::FilterConfig& proto_config,
     Extensions::Common::DynamicForwardProxy::DnsCacheManagerFactory& cache_manager_factory,
@@ -23,12 +31,13 @@ void ProxyFilter::onDestroy() {
 
 Http::FilterHeadersStatus ProxyFilter::decodeHeaders(Http::HeaderMap& headers, bool) {
   Router::RouteConstSharedPtr route = decoder_callbacks_->route();
-  if (!route || !route->routeEntry()) {
+  const Router::RouteEntry* route_entry;
+  if (!route || !(route_entry = route->routeEntry())) {
     return Http::FilterHeadersStatus::Continue;
   }
 
   Upstream::ThreadLocalCluster* cluster =
-      config_->clusterManager().get(route->routeEntry()->clusterName());
+      config_->clusterManager().get(route_entry->clusterName());
   if (!cluster) {
     return Http::FilterHeadersStatus::Continue;
   }
@@ -38,20 +47,38 @@ Http::FilterHeadersStatus ProxyFilter::decodeHeaders(Http::HeaderMap& headers, b
     default_port = 443;
   }
 
+  auto& resource = cluster->info()->resourceManager(route_entry->priority()).pendingRequests();
+
+  // fixfix circuit break pending connections without also initiating DNS queries.
+
   // See the comments in dns_cache.h for how loadDnsCache() handles hosts with embedded ports.
   // TODO(mattklein123): Because the filter and cluster have independent configuration, it is
   //                     not obvious to the user if something is misconfigured. We should see if
   //                     we can do better here, perhaps by checking the cache to see if anything
   //                     else is attached to it or something else?
-  cache_load_handle_ =
+  auto result =
       config_->cache().loadDnsCache(headers.Host()->value().getStringView(), default_port, *this);
-  if (cache_load_handle_ == nullptr) {
+  cache_load_handle_ = std::move(result.handle_);
+  switch (result.status_) {
+  case LoadDnsCacheStatus::InCache: {
+    ASSERT(cache_load_handle_ == nullptr);
     ENVOY_STREAM_LOG(debug, "DNS cache already loaded, continuing", *decoder_callbacks_);
     return Http::FilterHeadersStatus::Continue;
   }
-
-  ENVOY_STREAM_LOG(debug, "waiting to load DNS cache", *decoder_callbacks_);
-  return Http::FilterHeadersStatus::StopAllIterationAndWatermark;
+  case LoadDnsCacheStatus::Loading: {
+    ASSERT(cache_load_handle_ != nullptr);
+    ENVOY_STREAM_LOG(debug, "waiting to load DNS cache", *decoder_callbacks_);
+    return Http::FilterHeadersStatus::StopAllIterationAndWatermark;
+  }
+  case LoadDnsCacheStatus::Overflow: {
+    ASSERT(cache_load_handle_ == nullptr);
+    ENVOY_STREAM_LOG(debug, "DNS cache overflow", *decoder_callbacks_);
+    decoder_callbacks_->sendLocalReply(Http::Code::ServiceUnavailable,
+                                       ResponseStrings::get().DnsCacheOverflow, nullptr,
+                                       absl::nullopt, ResponseStrings::get().DnsCacheOverflow);
+    return Http::FilterHeadersStatus::StopIteration;
+  }
+  }
 }
 
 void ProxyFilter::onLoadDnsCacheComplete() {

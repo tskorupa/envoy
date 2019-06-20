@@ -9,6 +9,7 @@ option java_package = "io.envoyproxy.envoy.config.common.dynamic_forward_proxy.v
 import "envoy/api/v2/cds.proto";
 
 import "google/protobuf/duration.proto";
+import "google/protobuf/wrappers.proto";
 
 import "validate/validate.proto";
 
@@ -55,4 +56,7 @@ message DnsCacheConfig {
   //
   //   The TTL has no relation to DNS TTL and is only used to control Envoy's resource usage.
   google.protobuf.Duration host_ttl = 4 [(validate.rules).duration.gt = {}];
+
+  // fixfix doc not exact impl
+  google.protobuf.UInt32Value max_hosts = 5 [(validate.rules).uint32.gt = 0];
 }

@@ -201,6 +201,16 @@ public:
   bool stream_destroyed_{};
 };
 
+// fixfix
+class MockStreamDecoderFilterCallbacksWithMockedSendLocalReply
+    : public MockStreamDecoderFilterCallbacks {
+public:
+  MOCK_METHOD5(sendLocalReply, void(Code code, absl::string_view body,
+                                    std::function<void(HeaderMap& headers)> modify_headers,
+                                    const absl::optional<Grpc::Status::GrpcStatus> grpc_status,
+                                    absl::string_view details));
+};
+
 class MockStreamEncoderFilterCallbacks : public StreamEncoderFilterCallbacks,
                                          public MockStreamFilterCallbacksBase {
 public:
