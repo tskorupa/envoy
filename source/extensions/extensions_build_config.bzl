@@ -84,6 +84,7 @@ EXTENSIONS = {
     # NOTE: Kafka filter does not have a proper filter implemented right now. We are referencing to
     #       codec implementation that is going to be used by the filter.
     "envoy.filters.network.kafka":                      "//source/extensions/filters/network/kafka:kafka_request_codec_lib",
+    "envoy.filters.network.memcached_proxy":            "//source/extensions/filters/network/memcached_proxy:config",
     "envoy.filters.network.mongo_proxy":                "//source/extensions/filters/network/mongo_proxy:config",
     "envoy.filters.network.mysql_proxy":                "//source/extensions/filters/network/mysql_proxy:config",
     "envoy.filters.network.ratelimit":                  "//source/extensions/filters/network/ratelimit:config",
