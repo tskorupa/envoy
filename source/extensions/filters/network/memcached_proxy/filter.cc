@@ -9,8 +9,7 @@ namespace NetworkFilters {
 namespace MemcachedProxy {
 
 MemcachedProxyFilter::MemcachedProxyFilter(const std::string& stat_prefix, Stats::Scope& scope)
-    : scope_(scope),
-      stat_prefix_(stat_prefix),
+    : stat_prefix_(stat_prefix),
       stats_(generateStats(stat_prefix_, scope)) {
   stats_.downstream_cx_active_.inc();
 }
@@ -110,7 +109,6 @@ MemcachedProxyFilter::decodedTotalBodyLength(uint32_t bytes) {
 void
 MemcachedProxyFilter::initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callbacks) {
   read_callbacks_ = &callbacks;
-  read_callbacks_->connection().addConnectionCallbacks(*this);
 }
 
 Network::FilterStatus
@@ -120,8 +118,8 @@ MemcachedProxyFilter::onData(Buffer::Instance& data, bool) {
     decode(read_buffer_);
     return Network::FilterStatus::Continue;
   }
-  catch (DecoderError&) {
-    onDecoderError();
+  catch (DecoderError& e) {
+    onDecoderError(e);
     return Network::FilterStatus::StopIteration;
   }
 }
@@ -132,17 +130,10 @@ MemcachedProxyFilter::onNewConnection() {
 }
 
 void
-MemcachedProxyFilter::onDecoderError() {
+MemcachedProxyFilter::onDecoderError(DecoderError e) {
+  ENVOY_LOG(error, "decoder error: {}", e.what());
   stats_.decoder_error_.inc();
-
-  Buffer::OwnedImpl buffer;
-  /* NOTE: binary_protocol_decoder_ is instantiated in #decode()
-   *  The only entrypoint into #onDecoderError() is on an exception from within #decode()
-   */
-  binary_protocol_decoder_->encodeDecoderError(buffer);
-
-  read_callbacks_->connection().write(buffer, false);
-  read_callbacks_->connection().close(Network::ConnectionCloseType::NoFlush);
+  read_buffer_.drain(read_buffer_.length());
 }
 
 } // namespace MemcachedProxy

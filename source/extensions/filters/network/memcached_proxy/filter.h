@@ -5,7 +5,6 @@
 
 #include "common/buffer/buffer_impl.h"
 
-#include "envoy/network/connection.h"
 #include "envoy/network/filter.h"
 #include "envoy/stats/scope.h"
 #include "envoy/stats/stats_macros.h"
@@ -16,7 +15,7 @@ namespace NetworkFilters {
 namespace MemcachedProxy {
 
 #define ALL_FILTER_STATS(COUNTER, GAUGE)                      \
-  COUNTER(decoded_response)                             \
+  COUNTER(decoded_response)                                   \
   COUNTER(decoded_request)                                    \
   COUNTER(decoded_command_get)                                \
   COUNTER(decoded_command_set)                                \
@@ -30,7 +29,7 @@ namespace MemcachedProxy {
   COUNTER(decoded_command_append)                             \
   COUNTER(decoded_command_prepend)                            \
   COUNTER(decoder_error)                                      \
-  GAUGE(decoded_total_body_bytes, Accumulate)                 \
+  COUNTER(decoded_total_body_bytes)                           \
   GAUGE(downstream_cx_active, Accumulate)
 
 struct FilterStats {
@@ -39,7 +38,6 @@ struct FilterStats {
 
 class MemcachedProxyFilter : public Network::ReadFilter,
                              public DecoderCallbacks,
-                             public Network::ConnectionCallbacks,
                              Logger::Loggable<Logger::Id::memcached> {
 public:
   MemcachedProxyFilter(const std::string& stat_prefix, Stats::Scope& scope);
@@ -56,24 +54,17 @@ public:
   Network::FilterStatus onData(Buffer::Instance& data, bool end_stream) override;
   Network::FilterStatus onNewConnection() override;
 
-  // Network::ConnectionCallbacks
-  void onEvent(Network::ConnectionEvent) override {}
-  void onAboveWriteBufferHighWatermark() override {}
-  void onBelowWriteBufferLowWatermark() override {}
-
 private:
   DecoderPtr createDecoder(DecoderCallbacks& callbacks);
   void decode(Buffer::Instance& data);
   static FilterStats generateStats(const std::string& prefix, Stats::Scope& scope);
-  void onDecoderError();
+  void onDecoderError(DecoderError e);
 
   DecoderPtr binary_protocol_decoder_;
   Buffer::OwnedImpl read_buffer_;
   Network::ReadFilterCallbacks* read_callbacks_{};
-  [[maybe_unused]] Stats::Scope& scope_;
   std::string stat_prefix_;
   FilterStats stats_;
-  Buffer::OwnedImpl write_buffer_;
 };
 
 } // namespace MemcachedProxy

@@ -37,7 +37,6 @@ envoy_cc_library(
     deps = [
         ":binary_protocol_decoder_impl",
         ":codec",
-        "//include/envoy/network:connection_interface",
         "//include/envoy/network:filter_interface",
         "//include/envoy/stats:stats_macros",
         "//source/common/common:assert_lib",
